@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+  <title>Pantry</title>
+  <meta name="description" content="Scan barcodes to track what's in your pantry." />
+
+  <!-- Home-screen / PWA setup -->
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#3A4A32" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Pantry" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="app-header">
+      <div class="header-top">
+        <h1>Pantry <span class="count" id="item-count"></span></h1>
+        <button class="icon-btn" id="menu-btn" aria-label="Backup options">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <circle cx="12" cy="5" r="1.5" fill="currentColor" stroke="none"/>
+            <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/>
+            <circle cx="12" cy="19" r="1.5" fill="currentColor" stroke="none"/>
+          </svg>
+        </button>
+      </div>
+      <div class="search-row">
+        <input type="text" id="search-input" placeholder="Search items" autocomplete="off" />
+      </div>
+      <div class="sort-row">
+        <button class="sort-chip active" data-sort="name">Name</button>
+        <button class="sort-chip" data-sort="expiration">Expiration</button>
+        <button class="sort-chip" data-sort="added">Recently added</button>
+      </div>
+    </header>
+
+    <main class="list" id="list" hidden></main>
+
+    <div class="empty-state" id="empty-state" hidden>
+      <div class="glyph">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+          <path d="M8 4h8v3.5c1.5 0 2 1 2 2.5v9a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2v-9c0-1.5.5-2.5 2-2.5V4z" fill="#C99A2E"/>
+        </svg>
+      </div>
+      <h2>Your pantry is empty</h2>
+      <p>Scan a barcode to add the first item — we'll try to fill in the name, brand, and category for you.</p>
+      <button class="btn btn-primary" id="empty-scan-btn">Scan a barcode</button>
+    </div>
+
+    <button class="fab" id="fab-scan" aria-label="Scan a barcode">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M4 8V6a2 2 0 0 1 2-2h2M4 16v2a2 2 0 0 0 2 2h2M20 8V6a2 2 0 0 0-2-2h-2M20 16v2a2 2 0 0 1-2 2h-2M7 8v8M11 8v8M14 8v8M17 8v8" />
+      </svg>
+    </button>
+  </div>
+
+  <!-- Backup sheet -->
+  <div class="sheet-overlay" id="backup-overlay" hidden>
+    <div class="sheet">
+      <div class="sheet-header">
+        <h2>Backup</h2>
+        <button class="btn btn-text" id="backup-cancel">Close</button>
+      </div>
+      <div class="sheet-body">
+        <p class="lookup-note">
+          Your pantry is stored only on this phone. Export a backup file now and then
+          so you can restore it if you ever clear Safari's data or switch devices.
+        </p>
+
+        <button class="btn btn-primary" id="export-btn" style="width:100%; margin-bottom:12px;">
+          Export backup
+        </button>
+
+        <button class="btn" id="import-btn" style="width:100%; background:var(--white); border:1px solid var(--line); color:var(--ink);">
+          Import backup
+        </button>
+        <input type="file" id="import-file" accept="application/json" hidden />
+
+        <p class="barcode-readout" id="backup-status" style="margin-top:14px;"></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scan flow sheet -->
+  <div class="sheet-overlay" id="scan-overlay" hidden>
+    <div class="sheet">
+      <div class="sheet-header">
+        <h2>Scan barcode</h2>
+        <button class="btn btn-text" id="scan-cancel">Cancel</button>
+      </div>
+      <div class="sheet-body" style="padding:0;">
+        <div id="scan-stage-scanning">
+          <div id="scan-region"></div>
+          <p class="scan-hint" id="scan-hint">Point your camera at a barcode</p>
+        </div>
+        <div id="scan-stage-loading" class="scan-loading" hidden>
+          <div class="spinner"></div>
+          <p>Looking up product…</p>
+        </div>
+        <div id="scan-stage-form" hidden style="padding:18px;">
+          <p class="lookup-note" id="lookup-note" hidden></p>
+          <div class="field">
+            <label for="scan-name">Name</label>
+            <input type="text" id="scan-name" />
+          </div>
+          <div class="field">
+            <label for="scan-brand">Brand (optional)</label>
+            <input type="text" id="scan-brand" />
+          </div>
+          <div class="field">
+            <label for="scan-category">Category (optional)</label>
+            <input type="text" id="scan-category" />
+          </div>
+          <p class="barcode-readout" id="scan-barcode-readout"></p>
+
+          <div class="field" style="margin-top:18px;">
+            <label>Quantity</label>
+            <div class="stepper">
+              <button type="button" id="scan-qty-minus">−</button>
+              <span class="qty-value" id="scan-qty-value">1</span>
+              <button type="button" id="scan-qty-plus">+</button>
+            </div>
+          </div>
+          <p class="existing-note" id="existing-note" hidden></p>
+
+          <div class="toggle-row">
+            <span>Set expiration date</span>
+            <label class="switch">
+              <input type="checkbox" id="scan-exp-toggle" />
+              <span class="track"></span>
+            </label>
+          </div>
+          <div class="field" id="scan-exp-field" hidden>
+            <label for="scan-exp-date">Expires on</label>
+            <input type="date" id="scan-exp-date" />
+          </div>
+        </div>
+      </div>
+      <div class="sheet-footer" id="scan-footer" style="display:none;">
+        <button class="btn btn-primary" id="scan-save-btn">Save to pantry</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit item sheet -->
+  <div class="sheet-overlay" id="edit-overlay" hidden>
+    <div class="sheet">
+      <div class="sheet-header">
+        <h2>Edit item</h2>
+        <button class="btn btn-text" id="edit-cancel">Close</button>
+      </div>
+      <div class="sheet-body">
+        <div class="field">
+          <label for="edit-name">Name</label>
+          <input type="text" id="edit-name" />
+        </div>
+        <div class="field">
+          <label for="edit-brand">Brand</label>
+          <input type="text" id="edit-brand" />
+        </div>
+        <div class="field">
+          <label for="edit-category">Category</label>
+          <input type="text" id="edit-category" />
+        </div>
+        <p class="barcode-readout" id="edit-barcode-readout"></p>
+
+        <div class="field" style="margin-top:18px;">
+          <label>Quantity</label>
+          <div class="stepper">
+            <button type="button" id="edit-qty-minus">−</button>
+            <span class="qty-value" id="edit-qty-value">1</span>
+            <button type="button" id="edit-qty-plus">+</button>
+          </div>
+        </div>
+
+        <div class="toggle-row">
+          <span>Set expiration date</span>
+          <label class="switch">
+            <input type="checkbox" id="edit-exp-toggle" />
+            <span class="track"></span>
+          </label>
+        </div>
+        <div class="field" id="edit-exp-field" hidden>
+          <label for="edit-exp-date">Expires on</label>
+          <input type="date" id="edit-exp-date" />
+        </div>
+
+        <button class="btn btn-danger" id="edit-delete-btn" style="margin-top:8px;">Delete item</button>
+      </div>
+      <div class="sheet-footer">
+        <button class="btn btn-primary" id="edit-save-btn">Save changes</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script src="db.js"></script>
+  <script src="lookup.js"></script>
+  <script src="scanner.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
