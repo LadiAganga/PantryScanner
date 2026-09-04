@@ -2,7 +2,7 @@
 // works offline. Your item data lives in IndexedDB, which is always available
 // offline regardless of this cache; only the barcode lookup needs a network.
 
-const CACHE_NAME = "pantry-scanner-v2";
+const CACHE_NAME = "pantry-scanner-v3";
 const SHELL_FILES = [
   "./",
   "./index.html",
