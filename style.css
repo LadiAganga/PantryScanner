@@ -23,6 +23,13 @@
   box-sizing: border-box;
 }
 
+/* The 'hidden' attribute must always win over any component's own display
+   rule (e.g. .sheet-overlay's display:flex) — without this, toggling
+   .hidden = true/false in JS has no visual effect. */
+[hidden] {
+  display: none !important;
+}
+
 html,
 body {
   height: 100%;
